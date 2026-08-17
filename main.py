@@ -99,6 +99,7 @@ def validate_schema(data: list[dict]) -> list[dict]:
         clean, flags = check_injection(i)
         if not clean:
             log_decision(source=i.get("source", "unknwon"), outcome = "record_quarantined", reason="; ".join(flags))
+            print(f"  QUARANTINED {i.get('asset_id', 'unknown')}: {'; '.join(flags)}")
             continue
 
         valid_records.append(i) 
@@ -325,9 +326,9 @@ def orchestrator(sources: list[str]) -> dict:
 
 if __name__ == "__main__":
     SOURCES = [
-        "feed_scada.json",
-        "feed_facilities.json",
-        "feed_iot_backup.json",
+        "feeds/feed_scada.json",
+        "feeds/feed_facilities.json",
+        "feeds/feed_iot_backup.json",
     ]
     final_registry = orchestrator(SOURCES)
 
