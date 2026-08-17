@@ -78,7 +78,7 @@ This ranking is a placeholder reflecting plausible operational roles (a live tel
 
 **Nothing is silently discarded.** `resolve_conflict` returns both the winning and losing record, and both are written to the decision log with the specific rule that decided the outcome (e.g. `"A101: Incoming record has a more recent timestamp. Winner: {...}. Loser: {...}."`) — satisfying the requirement to explain why every update was accepted or rejected, including the losing side of a conflict.
 
-**Winners are always one complete, unmodified record — never a merge.** The registry never combines fields from two sources into a synthetic record. A merged entry couldn't honestly be attributed to any single source's actual claim, which would break the audit trail's core guarantee: every field in the registry traces back to one real claim from one real source.
+**Winners are always one complete, unmodified record. No merge never a merge.** The registry never combines fields from two sources into a synthetic record. A merged entry couldn't honestly be attributed to any single source's actual claim, which would break the audit trail's core guarantee: every field in the registry traces back to one real claim from one real source.
 
 **Stale replays are rejected even without a "conflict."** If a source resends an older record for an asset with no other source involved, `is_newer` prevents it from silently overwriting a more recent registry entry — this is the same recency principle as conflict resolution, applied even in the no-conflict path, so replaying old data can never roll the registry backward in time. Verified across two separate runs: re-feeding an already-superseded SCADA claim on a second run correctly lost against the persisted, newer Facilities entry.
 
