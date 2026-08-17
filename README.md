@@ -49,9 +49,7 @@ Every field from every feed is treated as untrusted, including the feed's own cl
 
 **1. Structural validation is the primary defence, not the pattern screen.** `status` is constrained to a fixed enum (`active`, `inactive`, `maintenance`, `decommissioned`); `asset_id` must match `[A-Za-z0-9_-]+`; `timestamp` must parse as valid ISO 8601; `location` is capped at 100 characters. These constraints mean a field like `status` has no room for injected text at all; an enum is complete by construction, whereas a denylist of suspicious phrases can never be exhaustive against novel wording. This is why `location` (over-length, over-100-char payloads) got rejected by the length cap alone in testing, before the injection screen even ran.
 
-**2. Pattern-based injection screening is a secondary, best-effort layer.** `check_injection` scans only the genuinely free-text fields (`location`, `source`) against a list of known injection-style phrases (`"ignore previous instructions"`, `"disregard the above"`, script/eval/exec patterns, SQL-injection shapes, etc.), case-insensitively. This is explicitly a denylist and is known to be incomplete — an attacker who avoids these exact phrasings would slip past it. It exists to catch obvious, unsophisticated attempts and to give the audit log something concrete to point at.
-
-**3. The real safety guarantee is structural, not detective.** No field from any feed is ever passed to an LLM, evaluated as code, or used to construct a command, file path, or query. Every field is only ever read, validated, compared, and stored as inert data. This means even an injection payload that evades both the enum constraints and the pattern screen has nowhere to actually execute; the agent has no code path that would interpret field content as an instruction. Detecting an attack and being structurally immune to its mechanism are different guarantees; this system leans on the second one.
+**2. Pattern-based injection screening is secondary and best-effort** `check_injection` scans only the genuinely free-text fields (`location`, `source`) against a list of known injection-style phrases (`"ignore previous instructions"`, `"disregard the above"`, script/eval/exec patterns, SQL-injection shapes, etc.), case-insensitively. This is explicitly a denylist and is known to be incomplete — an attacker who avoids these exact phrasings would slip past it. It exists to catch obvious, unsophisticated attempts and to give the audit log something concrete to point at.
 
 **Per-record, not per-file, rejection.** A malformed or malicious record only disqualifies itself, never the rest of its source file. Rejecting an entire feed over one bad record would discard good data unnecessarily.
 
@@ -62,8 +60,8 @@ Every field from every feed is treated as untrusted, including the feed's own cl
 ## Conflict resolution strategy
 
 A conflict is only raised when two **different sources** report **different** `status` or `location` for the same `asset_id`. Two related situations are deliberately *not* treated as conflicts:
-- The same source updating its own earlier claim over time (an asset genuinely changing state) — this is normal data, not a dispute.
-- Two different sources agreeing — this is corroboration, and is treated as a (silent) confidence signal rather than logged as an event.
+- The same source updating its own earlier claim over time (an asset genuinely changing state) this is normal data not  dispute.
+- Two different sources agreeing — this is corroboration, and is treated as a confidence signal rather than logged as an event.
 
 **Primary rule: most recent timestamp wins.** An asset registry's job is to reflect current reality. A source-priority-first rule would let a stale claim from a "trusted" source override a fresher, accurate claim from elsewhere — actively working against the registry's purpose. Timestamp precedence keeps the registry current by default.
 
@@ -76,7 +74,7 @@ A conflict is only raised when two **different sources** report **different** `s
 | `iot_backup` | 3 |
 | unknown source | 99 (lowest trust) |
 
-This ranking is a placeholder reflecting plausible operational roles (a live telemetry system ranked above an explicitly-named backup feed) rather than a rigorously derived trust model — in a real deployment this would be set with actual domain input on each system's reliability.
+This ranking is a placeholder reflecting plausible operational roles (a live telemetry system ranked above an explicitly-named backup feed) rather than a rigorously derived trust model. In a real deployment this would be set with actual domain input on each system's reliability.
 
 **Nothing is silently discarded.** `resolve_conflict` returns both the winning and losing record, and both are written to the decision log with the specific rule that decided the outcome (e.g. `"A101: Incoming record has a more recent timestamp. Winner: {...}. Loser: {...}."`) — satisfying the requirement to explain why every update was accepted or rejected, including the losing side of a conflict.
 
@@ -96,7 +94,7 @@ This ranking is a placeholder reflecting plausible operational roles (a live tel
 
 - **`assess_source_quality` currently only flags a degraded source; it doesn't yet act on the flag.** A natural next step is feeding this signal back into `resolve_conflict`, temporarily lowering a degraded source's priority for the remainder of the run.
 - **Registry writes happen once, at the end of a run.** Simpler to reason about, but a crash mid-run loses that run's progress (though nothing already persisted from prior runs is affected). A production version would persist incrementally or use a transactional store (e.g. SQLite) for crash-safety.
-- **`location` is free text with a length cap and pattern screen, not a closed enum**, unlike `status`. This was a deliberate choice — real facility location strings are often multi-part and too varied for a small fixed vocabulary — but it is the weaker-guarantee field in the schema. A production system covering a known, finite set of physical sites could tighten this to an enum the same way `status` is handled.
-- **The injection pattern list is a denylist and is known to be incomplete by construction.** This is fine because the system's actual safety guarantee is structural (see above), but a production system would likely add further layers — e.g. rate-limiting or reputation tracking per source over time, not just within a single run.
+- **`location` is free text with a length cap and pattern screen, not a closed enum**, unlike `status`. This was a deliberate choice: real facility location strings are often multi-part and too varied for a small fixed vocabulary. Bu it is the weaker-guarantee field in the schema. A production system covering a known, finite set of physical sites could tighten this to an enum the same way `status` is handled.
+- **The injection pattern list is a denylist and is known to be incomplete by construction.** A production system would likely add further layers like rate-limiting or reputation tracking per source over time, not just within a single run.
 - **Currently a single file.** Given the scope, this keeps the whole pipeline readable top-to-bottom in one pass, which matters for review. With more time this would split into modules (`validation.py`, `registry.py`, `conflict.py`, `main.py`).
 - **Source priority ranking is illustrative, not derived from real reliability data** — see the conflict resolution section above.
