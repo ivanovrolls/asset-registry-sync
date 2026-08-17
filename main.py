@@ -15,7 +15,7 @@ INJECTION_PATTERNS = [
     r"system prompt",
     r"you are now",
     r"new instructions?:",
-    r"act as (a|an)\b",
+    r"act as (aclea|an)\b",
     r"\bexec\(",
     r"\beval\(",
     r"<\s*script",
@@ -89,17 +89,19 @@ def validate_schema(data: list[dict]) -> list[dict]:
         missing = REQUIRED_FIELDS - i.keys()
         if missing:
             log_decision(source=i.get("source", "unknown"), outcome="record_rejected", reason=f"Missing fields: {missing}")
+            print(f"INVALID RECORD REJECTED {i.get('asset_id', 'unknown')}: Missing fields: {missing}")
             continue
 
         is_valid, problems = validate_record(i)
         if not is_valid:
             log_decision(source=i.get('source', "unknown"), outcome="record_rejected", reason="; ".join(problems))
+            print(f"INVALID RECORD REJECTED {i.get('asset_id', 'unknown')}: {'; '.join(problems)}")            
             continue
 
         clean, flags = check_injection(i)
         if not clean:
             log_decision(source=i.get("source", "unknwon"), outcome = "record_quarantined", reason="; ".join(flags))
-            print(f"  QUARANTINED {i.get('asset_id', 'unknown')}: {'; '.join(flags)}")
+            print(f"QUARANTINED {i.get('asset_id', 'unknown')}: {'; '.join(flags)}")
             continue
 
         valid_records.append(i) 
